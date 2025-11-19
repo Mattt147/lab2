@@ -4,7 +4,7 @@
 """
 
 import sys
-from materials_package import (
+from package import (
     Wallpaper, Tile, Laminate,
     MaterialCalculator, RoomCalculator,
     DocxExporter, ExcelExporter,
