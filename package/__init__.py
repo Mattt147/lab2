@@ -30,12 +30,12 @@
     >>> exporter = DocxExporter("отчёт.docx")
     >>> exporter.export(result)
 
-Версия: 1.0.0
-Автор: Materials Calculator Team
+Версия: Rare
+Автор: Mattt147
 """
 
-__version__ = "1.0.0"
-__author__ = "Materials Calculator Team"
+__version__ = "Rare"
+__author__ = "Mattt147"
 
 # Импорт классов из модулей для удобного доступа
 from .models import (
