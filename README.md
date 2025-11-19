@@ -35,3 +35,4 @@ python main.py
 python -m pytest tests/
 ```
 
+# lab2
