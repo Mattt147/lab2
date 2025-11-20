@@ -3,7 +3,9 @@
 Содержит классы для экспорта результатов расчётов в форматы .doc и .xls
 """
 
+from abc import ABC, abstractmethod
 from datetime import datetime
+import os
 from docx import Document
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -12,18 +14,25 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from .models import CalculationResult
 
 
-class BaseExporter:
-    """Базовый класс для экспортеров"""
+class BaseExporter(ABC):
+    """Абстрактный базовый класс для экспортеров"""
     
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, allowed_extensions=None):
         """
         Инициализация экспортера
         
         Args:
             filename (str): Имя файла для сохранения
+            allowed_extensions (list): Список разрешённых расширений файлов
         """
         self._filename = filename
         self._export_count = 0
+        self._allowed_extensions = allowed_extensions or []
+        self._is_context_active = False
+        
+        # Валидация расширения при инициализации, если filename задан
+        if filename:
+            self._validate_extension(filename)
     
     @property
     def filename(self):
@@ -32,10 +41,68 @@ class BaseExporter:
     
     @filename.setter
     def filename(self, value):
-        """Установить имя файла"""
+        """
+        Установить имя файла с валидацией расширения
+        
+        Args:
+            value (str): Имя файла
+        
+        Raises:
+            ValueError: Если имя файла пустое или расширение не разрешено
+        """
         if not value:
             raise ValueError("Имя файла не может быть пустым")
+        self._validate_extension(value)
         self._filename = value
+    
+    @property
+    def allowed_extensions(self):
+        """Получить список разрешённых расширений"""
+        return self._allowed_extensions.copy()
+    
+    @allowed_extensions.setter
+    def allowed_extensions(self, value):
+        """
+        Установить список разрешённых расширений
+        
+        Args:
+            value (list): Список расширений (например, ['docx', 'xlsx'])
+        
+        Raises:
+            ValueError: Если значение не является списком или содержит недопустимые элементы
+        """
+        if not isinstance(value, list):
+            raise ValueError("allowed_extensions должен быть списком")
+        if not all(isinstance(ext, str) and (ext.lstrip('.').isalnum() if ext else False) for ext in value):
+            raise ValueError("Все расширения должны быть строками из букв и цифр")
+        self._allowed_extensions = [ext.lower().lstrip('.') for ext in value]
+        
+        # Валидируем текущий filename, если он задан
+        if self._filename:
+            self._validate_extension(self._filename)
+    
+    def _validate_extension(self, filename):
+        """
+        Валидация расширения файла
+        
+        Args:
+            filename (str): Имя файла для проверки
+        
+        Raises:
+            ValueError: Если расширение не разрешено
+        """
+        if not self._allowed_extensions:
+            return  # Если список пуст, валидация не требуется
+        
+        # Извлекаем расширение
+        _, ext = os.path.splitext(filename)
+        ext = ext.lstrip('.').lower()
+        
+        if ext not in self._allowed_extensions:
+            raise ValueError(
+                f"Расширение '{ext}' не разрешено. "
+                f"Разрешённые расширения: {', '.join(self._allowed_extensions)}"
+            )
     
     def _generate_filename(self, extension):
         """
@@ -46,24 +113,67 @@ class BaseExporter:
         
         Returns:
             str: Сгенерированное имя файла
+        
+        Raises:
+            ValueError: Если расширение не разрешено
         """
+        # Убираем точку, если есть
+        extension = extension.lstrip('.').lower()
+        
+        # Валидируем расширение, если есть список разрешённых
+        if self._allowed_extensions and extension not in self._allowed_extensions:
+            # Используем первое разрешённое расширение, если переданное не разрешено
+            if self._allowed_extensions:
+                extension = self._allowed_extensions[0]
+            else:
+                raise ValueError(f"Расширение '{extension}' не разрешено")
+        
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return f"calculation_report_{timestamp}.{extension}"
     
+    @abstractmethod
     def export(self, results):
         """
-        Абстрактный метод экспорта (должен быть переопределён)
+        Абстрактный метод экспорта (должен быть реализован в подклассе)
         
         Args:
             results: Результаты для экспорта
+        
+        Returns:
+            str: Путь к созданному файлу
         """
-        raise NotImplementedError("Метод export должен быть реализован в подклассе")
+        pass
+    
+    def __enter__(self):
+        """
+        Вход в контекстный менеджер
+        
+        Returns:
+            BaseExporter: Сам объект экспортера
+        """
+        self._is_context_active = True
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        Выход из контекстного менеджера
+        
+        Args:
+            exc_type: Тип исключения (если было)
+            exc_val: Значение исключения (если было)
+            exc_tb: Трассировка исключения (если было)
+        
+        Returns:
+            bool: False, чтобы не подавлять исключения
+        """
+        self._is_context_active = False
+        return False  # Не подавляем исключения
     
     def __str__(self):
         return f"{self.__class__.__name__}(файл: {self._filename}, экспортов: {self._export_count})"
     
     def __repr__(self):
-        return f"{self.__class__.__name__}('{self._filename}')"
+        return f"{self.__class__.__name__}(filename='{self._filename}', allowed_extensions={self._allowed_extensions})"
 
 
 class DocxExporter(BaseExporter):
@@ -76,7 +186,7 @@ class DocxExporter(BaseExporter):
         Args:
             filename (str): Имя файла (если None, генерируется автоматически)
         """
-        super().__init__(filename)
+        super().__init__(filename, allowed_extensions=['docx', 'doc'])
     
     def export(self, results):
         """
@@ -185,7 +295,7 @@ class ExcelExporter(BaseExporter):
         Args:
             filename (str): Имя файла (если None, генерируется автоматически)
         """
-        super().__init__(filename)
+        super().__init__(filename, allowed_extensions=['xlsx', 'xls'])
     
     def export(self, results):
         """
@@ -270,13 +380,18 @@ class ExcelExporter(BaseExporter):
             ws.cell(row=row, column=6).number_format = '#,##0.00 ₽'
         
         # Автоподбор ширины колонок
-        for column in ws.columns:
+        from openpyxl.utils import get_column_letter
+        for col_idx in range(1, ws.max_column + 1):
             max_length = 0
-            column_letter = column[0].column_letter
-            for cell in column:
+            column_letter = get_column_letter(col_idx)
+            for row_idx in range(1, ws.max_row + 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                # Пропускаем объединённые ячейки
+                if cell.coordinate in ws.merged_cells:
+                    continue
                 try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(cell.value)
+                    if cell.value and len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
                 except:
                     pass
             adjusted_width = (max_length + 2) * 1.2
