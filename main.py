@@ -4,10 +4,13 @@
 """
 
 import sys
+import os
+from pathlib import Path
 from package import (
     Wallpaper, Tile, Laminate,
     MaterialCalculator, RoomCalculator,
     DocxExporter, ExcelExporter,
+    DatabaseManager,
     validate_positive_number
 )
 
@@ -15,9 +18,22 @@ from package import (
 class MaterialCalculatorApp:
     """Основное приложение для расчёта материалов"""
     
-    def __init__(self):
-        """Инициализация приложения"""
-        self.calculator = MaterialCalculator(reserve_percent=10)
+    def __init__(self, db_path='data/materials_calculator.db'):
+        """
+        Инициализация приложения
+        
+        Args:
+            db_path (str): Путь к файлу базы данных
+        """
+        # Создаём директорию для БД, если её нет
+        db_dir = Path(db_path).parent
+        db_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Инициализируем менеджер БД
+        self.db_manager = DatabaseManager(db_path=db_path)
+        
+        # Создаём калькуляторы с поддержкой БД
+        self.calculator = MaterialCalculator(reserve_percent=10, db_manager=self.db_manager)
         self.room_calculator = RoomCalculator()
         self.materials = []
         self.results = []

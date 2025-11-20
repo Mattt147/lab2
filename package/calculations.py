@@ -5,13 +5,14 @@
 
 import math
 from .models import Material, CalculationResult
+from .database import DatabaseManager
 
 
 class MaterialCalculator:
     """Класс для расчёта количества и стоимости материалов"""
     
     def __init__(self, reserve_percent=10, min_area=0.1, max_area=10000, 
-                 precision=2, currency="₽", auto_save=True):
+                 precision=2, currency="₽", auto_save=True, db_manager=None):
         """
         Инициализация калькулятора
         
@@ -22,6 +23,7 @@ class MaterialCalculator:
             precision (int): Точность округления стоимости (по умолчанию 2)
             currency (str): Валюта для отображения (по умолчанию "₽")
             auto_save (bool): Автоматически сохранять расчёты в историю (по умолчанию True)
+            db_manager (DatabaseManager): Менеджер БД для сохранения результатов (опционально)
         """
         self._reserve_percent = reserve_percent
         self._min_area = min_area
@@ -30,6 +32,7 @@ class MaterialCalculator:
         self._currency = currency
         self._auto_save = auto_save
         self._calculations_history = []
+        self._db_manager = db_manager
     
     @property
     def reserve_percent(self):
@@ -203,6 +206,13 @@ class MaterialCalculator:
         # Сохраняем в историю, если включено автосохранение
         if self._auto_save:
             self._calculations_history.append(result)
+            # Сохраняем в БД, если менеджер БД настроен
+            if self._db_manager:
+                try:
+                    self._db_manager.save_calculation(result, calculation_type='simple')
+                except Exception as e:
+                    # Не прерываем выполнение, только логируем ошибку
+                    print(f"⚠️  Предупреждение: не удалось сохранить в БД: {e}")
         
         return result
     

@@ -58,6 +58,10 @@ from .exporters import (
     ExcelExporter
 )
 
+from .database import (
+    DatabaseManager
+)
+
 # Определяем, что будет доступно при импорте через "from package import *"
 __all__ = [
     # Модели
@@ -76,6 +80,9 @@ __all__ = [
     'BaseExporter',
     'DocxExporter',
     'ExcelExporter',
+    
+    # База данных
+    'DatabaseManager',
     
     # Метаданные
     '__version__',
